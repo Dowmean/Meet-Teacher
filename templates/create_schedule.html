@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Schedule</title>
+</head>
+<body>
+    <h1>Create Schedule</h1>
+
+    <form id="scheduleForm">
+        <label for="teacher_id">Teacher ID:</label>
+        <input type="number" id="teacher_id" name="teacher_id" required><br><br>
+
+        <label for="available_time">Available Time:</label>
+        <input type="datetime-local" id="available_time" name="available_time" required><br><br>
+
+        <button type="submit">Create Schedule</button>
+    </form>
+
+    <p id="responseMessage"></p>
+
+    <script>
+        document.getElementById('scheduleForm').addEventListener('submit', async function (event) {
+            event.preventDefault(); // Prevent the default form submission
+
+            const teacher_id = document.getElementById('teacher_id').value;
+            const available_time = document.getElementById('available_time').value;
+
+            const data = {
+                teacher_id: teacher_id,
+                available_time: new Date(available_time).toISOString()  // Convert to ISO string
+            };
+
+            try {
+                const response = await fetch('/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('responseMessage').innerText = result.message;
+                } else {
+                    document.getElementById('responseMessage').innerText = result.error;
+                }
+            } catch (error) {
+                document.getElementById('responseMessage').innerText = 'Error creating schedule';
+            }
+        });
+    </script>
+</body>
+</html>
