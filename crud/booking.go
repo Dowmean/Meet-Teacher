@@ -2,7 +2,6 @@ package crud
 
 import (
     "net/http"
-    "time"
     "github.com/gin-gonic/gin"
     "gorm.io/gorm"
     "golangproject/models"
@@ -11,10 +10,8 @@ import (
 // CreateBooking สร้างข้อมูลการจองใหม่
 func CreateBooking(c *gin.Context, db *gorm.DB) {
     var input struct {
-        StudentID uint      `json:"student_id" binding:"required"`
-        TeacherID uint      `json:"teacher_id" binding:"required"`
-        Time      string    `json:"time" binding:"required"`
-        Subject   string    `json:"subject" binding:"required"`
+        ScheduleID uint   `json:"schedule_id" binding:"required"`  // รับ ScheduleID แทนการใช้ TeacherID โดยตรง
+        Subject    string `json:"subject" binding:"required"`
     }
 
     // ตรวจสอบข้อมูลที่ส่งเข้ามา
@@ -23,20 +20,33 @@ func CreateBooking(c *gin.Context, db *gorm.DB) {
         return
     }
 
-    // แปลงเวลา (Time) จาก string เป็น time.Time
-    parsedTime, err := time.Parse("2006-01-02T15:04:05", input.Time)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบเวลาที่ส่งมาไม่ถูกต้อง"})
+    // ดึง StudentID จาก session หรือ token ของผู้ใช้ที่ล็อกอิน
+    studentID, exists := c.Get("userID")  // สมมุติว่าคุณเก็บ StudentID ไว้ใน context หรือ session
+    if !exists {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "ไม่ได้ล็อกอิน"})
+        return
+    }
+
+    // ดึงข้อมูลตารางเวลาจาก Schedule เพื่อตรวจสอบ
+    var schedule models.Schedule
+    if err := db.First(&schedule, input.ScheduleID).Error; err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบตารางเวลานี้"})
+        return
+    }
+
+    // ตรวจสอบว่าถูกจองแล้วหรือยัง
+    if schedule.Is_booked {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "เวลานี้ถูกจองแล้ว"})
         return
     }
 
     // สร้างการจองใหม่
     booking := models.Booking{
-        Student_id: input.StudentID,
-        Teacher_id: input.TeacherID,
-        Time:       parsedTime,
-        Subject:    input.Subject,
-        Status:     models.Pending,  // ตั้งค่าสถานะเริ่มต้นเป็น Pending
+        Student_id:  studentID.(uint),       // ใช้ StudentID จากผู้ใช้ที่ล็อกอิน
+        Teacher_id:  schedule.Teacher_id,    // ใช้ TeacherID จากตาราง Schedule
+        Time:        schedule.Available_time,  // ใช้เวลาในตาราง Schedule
+        Subject:     input.Subject,
+        Status:      models.Pending,         // ตั้งค่าสถานะเริ่มต้นเป็น Pending
     }
 
     // บันทึกการจองลงฐานข้อมูล
@@ -49,6 +59,7 @@ func CreateBooking(c *gin.Context, db *gorm.DB) {
     c.JSON(http.StatusOK, gin.H{"message": "สร้างการจองสำเร็จ", "booking": booking})
 }
 
+// UpdateBookingStatus อัปเดตสถานะการจอง
 func UpdateBookingStatus(c *gin.Context, db *gorm.DB) {
     bookingID := c.Param("id")
 

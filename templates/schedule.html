@@ -4,42 +4,92 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ตารางเวลาของอาจารย์</title>
+    <!-- FullCalendar CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css" rel="stylesheet" />
 </head>
 <body>
     <h1>ตารางเวลาของอาจารย์</h1>
-    <div id="schedules"></div>
+    <div id="calendar"></div>
 
+    <!-- FullCalendar JS -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
     <script>
         // ดึง teacher_id จาก URL
-        const teacherID = window.location.pathname.split('/').slice(-1)[0]; 
+        const teacherID = window.location.pathname.split('/').slice(-1)[0];
 
         // เรียก API เพื่อดึงข้อมูลตารางเวลา
         fetch(`/schedule/${teacherID}/api`)
-    .then(response => response.json())
-    .then(data => {
-        const scheduleDiv = document.getElementById('schedules');
-        const schedules = data.schedules;
+        .then(response => response.json())
+        .then(data => {
+            const calendarEl = document.getElementById('calendar');
 
-        if (schedules.length > 0) {
-            schedules.forEach(schedule => {
-                const scheduleItem = document.createElement('div');
-
-                // แสดงข้อมูล available_time ที่ได้รับจาก API เพื่อการตรวจสอบ
-                console.log('Available time from API:', schedule.Availabletime);
-
-                const time = new Date(schedule.Availabletime);  // แปลงเวลา
-                const timeText = isNaN(time.getTime()) ? "เวลาไม่ถูกต้อง" : time.toLocaleString();
-                const status = schedule.Is_booked ? 'ถูกจองแล้ว' : 'ยังว่าง';
-                scheduleItem.textContent = `เวลา: ${timeText}, สถานะ: ${status}`;
-                scheduleDiv.appendChild(scheduleItem);
+            // สร้างปฏิทิน
+            const calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                locale: 'th',  // ตั้งค่าให้แสดงผลภาษาไทย
+                events: data.schedules.map(schedule => {
+                    return {
+                        title: schedule.is_booked ? 'ถูกจองแล้ว' : 'ยังว่าง',
+                        start: schedule.Availabletime,
+                        backgroundColor: schedule.is_booked ? 'red' : 'green',  // สีของ event ขึ้นกับสถานะ
+                        textColor: 'white',
+                        extendedProps: {
+                            isBooked: schedule.is_booked,
+                            scheduleId: schedule.ID
+                        }
+                    };
+                }),
+                eventClick: function(info) {
+                    const eventObj = info.event;
+                
+                    // ตรวจสอบว่าสถานะการจองว่างหรือไม่
+                    if (!eventObj.extendedProps.isBooked) {
+                        const subject = prompt("กรุณากรอกหัวข้อการจอง:");
+                
+                        if (subject) {
+                            if (confirm(`คุณต้องการจองเวลา ${eventObj.start.toLocaleString()} หรือไม่?`)) {
+                                console.log({
+                                    schedule_id: eventObj.extendedProps.scheduleId,
+                                    subject: subject
+                                });
+                                // เรียก API เพื่อจองเวลา
+                                fetch(`/bookings`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                        schedule_id: eventObj.extendedProps.scheduleId,  // ส่ง ScheduleID
+                                        subject: subject                                // ส่ง Subject ที่ผู้ใช้กรอก
+                                    })
+                                })
+                                .then(response => {
+                                    if (response.ok) {
+                                        alert('จองสำเร็จ!');
+                                        eventObj.setProp('title', 'ถูกจองแล้ว');
+                                        eventObj.setProp('backgroundColor', 'red');
+                                    } else {
+                                        alert('ไม่สามารถจองได้');
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Error booking:', error);
+                                    alert('เกิดข้อผิดพลาดในการจอง');
+                                });
+                            }
+                        }
+                    } else {
+                        alert('เวลานี้ถูกจองแล้ว');
+                    }
+                }
             });
-        } else {
-            scheduleDiv.textContent = 'ไม่มีตารางเวลา';
-        }
-    })
-    .catch(error => {
-        console.error('Error fetching schedules:', error);
-    });
+
+            // แสดงปฏิทิน
+            calendar.render();
+        })
+        .catch(error => {
+            console.error('Error fetching schedules:', error);
+        });
     </script>
 </body>
 </html>

@@ -74,7 +74,7 @@ func main() {
         crud.DeleteSchedule(c, db)
     })
 
-    router.POST("/bookings", func(c *gin.Context) {
+    router.POST("/bookings",controllers.AuthMiddleware(), func(c *gin.Context) {
         crud.CreateBooking(c, db)
     })
 

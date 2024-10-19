@@ -16,7 +16,8 @@ var jwtKey = []byte("secret_key")
 
 // Claims represents the JWT claims
 type Claims struct {
-    Email string `json:"email"`
+    UserID uint   `json:"user_id"`
+    Email  string `json:"email"`
     jwt.StandardClaims
 }
 
@@ -85,10 +86,11 @@ func Login(c *gin.Context, db *gorm.DB) {
         return
     }
 
-    // JWT token generation
+    // JWT token generation with userID and email
     expirationTime := time.Now().Add(24 * time.Hour)
     claims := &Claims{
-        Email: input.Email,
+        UserID: user.ID,   // เก็บ userID ลงใน JWT token
+        Email:  user.Email,
         StandardClaims: jwt.StandardClaims{
             ExpiresAt: expirationTime.Unix(),
         },
@@ -102,9 +104,38 @@ func Login(c *gin.Context, db *gorm.DB) {
         return
     }
 
-    // Set the JWT token in a cookie
+    // Set the JWT token in a cookie (cookie อายุ 24 ชั่วโมง)
     c.SetCookie("token", tokenString, 3600*24, "/", "", false, true)
 
     // Send response after successful login
     c.HTML(http.StatusOK, "dashboard.html", gin.H{"message": "Login successful!"})
+}
+
+func AuthMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        // ดึง token จากคุกกี้
+        tokenString, err := c.Cookie("token")
+        if err != nil {
+            c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized, please log in"})
+            c.Abort()
+            return
+        }
+
+        // Parse token
+        claims := &Claims{}
+        token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+            return jwtKey, nil
+        })
+
+        if err != nil || !token.Valid {
+            c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized, invalid token"})
+            c.Abort()
+            return
+        }
+
+        // เก็บ userID ลงใน context เพื่อใช้ในคำขออื่นๆ
+        c.Set("userID", claims.UserID)
+
+        c.Next()
+    }
 }
