@@ -17,7 +17,7 @@ import (
 var db *gorm.DB
 
 func main() {
-    dsn := "Dowmean:Dowmean.1006@tcp(127.0.0.1:3306)/meet?charset=utf8mb4&parseTime=True&loc=Local"
+    dsn := "meet:1234@tcp(127.0.0.1:3306)/meet?charset=utf8mb4&parseTime=True&loc=Local"
     var err error
     db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
     if err != nil {
@@ -26,6 +26,9 @@ func main() {
 
     // Auto migrate the User model
     db.AutoMigrate(&models.User{})
+    db.AutoMigrate(&models.Schedule{})
+    db.AutoMigrate(&models.Booking{})
+    db.AutoMigrate(&models.Notification{})
 
     router := gin.Default()
 
@@ -56,6 +59,28 @@ func main() {
 	router.POST("/create", func(c *gin.Context) {
 		crud.CreateSchedule(c, db)
 	})
+    router.GET("/schedule/:teacher_id", func(c *gin.Context) {
+        c.HTML(http.StatusOK, "schedule.html", nil)
+    })
+    router.GET("/schedule/:teacher_id/api", func(c *gin.Context) {
+        crud.GetSchedule(c, db)
+    })
+
+    router.PUT("/schedule/:id", func(c *gin.Context) {
+        crud.UpdateSchedule(c, db)
+    })
+
+    router.DELETE("/schedule/:id", func(c *gin.Context) {
+        crud.DeleteSchedule(c, db)
+    })
+
+    router.POST("/bookings", func(c *gin.Context) {
+        crud.CreateBooking(c, db)
+    })
+
+    router.PUT("/bookings/:id/status", func(c *gin.Context) {
+        crud.UpdateBookingStatus(c, db)
+    })
 
     port := os.Getenv("PORT")
     if port == "" {

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สร้างการจอง</title>
+    <script>
+        function createBooking(event) {
+            event.preventDefault(); // ป้องกันการรีเฟรชหน้า
+
+            // ดึงค่าจากฟอร์ม
+            const studentID = document.getElementById("student_id").value;
+            const teacherID = document.getElementById("teacher_id").value;
+            const time = document.getElementById("time").value;
+            const subject = document.getElementById("subject").value;
+
+            // ตรวจสอบว่าค่าทั้งหมดถูกกรอก
+            if (!studentID || !teacherID || !time || !subject) {
+                alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+                return;
+            }
+
+            // สร้างข้อมูลการจองในรูปแบบ JSON
+            const bookingData = {
+                student_id: parseInt(studentID),
+                teacher_id: parseInt(teacherID),
+                time: time,
+                subject: subject
+            };
+
+            // ส่งข้อมูลไปยัง API
+            fetch('/bookings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(bookingData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert("ไม่สามารถสร้างการจองได้: " + data.error);
+                } else {
+                    alert("สร้างการจองสำเร็จ");
+                    console.log(data.booking);  // แสดงข้อมูลการจองใน console
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("เกิดข้อผิดพลาดในการส่งคำขอ");
+            });
+        }
+    </script>
+</head>
+<body>
+    <h1>สร้างการจอง</h1>
+    
+    <form id="bookingForm" onsubmit="createBooking(event)">
+        <label for="student_id">Student ID:</label><br>
+        <input type="number" id="student_id" name="student_id" required><br><br>
+
+        <label for="teacher_id">Teacher ID:</label><br>
+        <input type="number" id="teacher_id" name="teacher_id" required><br><br>
+
+        <label for="time">เวลา (รูปแบบ: 2024-10-18T14:00:00):</label><br>
+        <input type="text" id="time" name="time" required><br><br>
+
+        <label for="subject">วิชา:</label><br>
+        <input type="text" id="subject" name="subject" required><br><br>
+
+        <input type="submit" value="สร้างการจอง">
+    </form>
+
+</body>
+</html>
