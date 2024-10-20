@@ -1,22 +1,137 @@
-version: '3'
-services:
-  app:
-    build: .
-    ports:
-      - "8080:8080"
-    environment:
-      - DB_HOST=mysql  # Change to match the service name of the MySQL container
-      - DB_PORT=3306
-      - DB_USER=root
-      - DB_PASSWORD=dowmean.1006
-      - DB_NAME=meet
-    depends_on:
-      - mysql
+version: '3.9'
 
-  mysql:
-    image: mysql:latest
+x-kong-config:
+  &kong-env
+  KONG_DATABASE: ${KONG_DATABASE:-postgres}
+  KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
+  KONG_PG_HOST: db
+  KONG_PG_USER: ${KONG_PG_USER:-kong}
+  KONG_PG_PASSWORD_FILE: /run/secrets/kong_postgres_password
+
+volumes:
+  kong_data: {}
+  db-data-mysql: {}
+  kong_prefix_vol:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+  kong_tmp_vol:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+
+networks:
+  kong-net:
+
+services:
+  kong-migrations:
+    image: "${KONG_DOCKER_TAG:-kong:latest}"
+    command: kong migrations bootstrap
+    profiles: [ "database" ]
+    depends_on:
+      - db
     environment:
-      MYSQL_ROOT_PASSWORD: dowmean.1006  # Correct environment variable
-      MYSQL_DATABASE: meet
+      <<: *kong-env
+    secrets:
+      - kong_postgres_password
+    networks:
+      - kong-net
+    restart: on-failure
+
+  kong-migrations-up:
+    image: "${KONG_DOCKER_TAG:-kong:latest}"
+    command: kong migrations up && kong migrations finish
+    profiles: [ "database" ]
+    depends_on:
+      - db
+    environment:
+      <<: *kong-env
+    secrets:
+      - kong_postgres_password
+    networks:
+      - kong-net
+    restart: on-failure
+
+  kong:
+    image: "${KONG_DOCKER_TAG:-kong:latest}"
+    user: "${KONG_USER:-kong}"
+    environment:
+      <<: *kong-env
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_PROXY_LISTEN: "${KONG_PROXY_LISTEN:-0.0.0.0:8000}"
+      KONG_ADMIN_LISTEN: "${KONG_ADMIN_LISTEN:-0.0.0.0:8001}"
+      KONG_ADMIN_GUI_LISTEN: "${KONG_ADMIN_GUI_LISTEN:-0.0.0.0:8002}"
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_PREFIX: ${KONG_PREFIX:-/var/run/kong}
+      KONG_DECLARATIVE_CONFIG: "/opt/kong/kong.yaml"
+    secrets:
+      - kong_postgres_password
+    networks:
+      - kong-net
     ports:
-      - "3306:3306"
+      - "${KONG_INBOUND_PROXY_LISTEN:-0.0.0.0}:8000:8000/tcp"
+      - "${KONG_INBOUND_SSL_PROXY_LISTEN:-0.0.0.0}:8443:8443/tcp"
+      - "8001:8001/tcp"
+      - "8444:8444/tcp"
+      - "8002:8002/tcp"
+    healthcheck:
+      test: [ "CMD", "kong", "health" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: on-failure:5
+    read_only: true
+    volumes:
+      - kong_prefix_vol:${KONG_PREFIX:-/var/run/kong}
+      - kong_tmp_vol:/tmp
+      - ./config:/opt/kong
+    security_opt:
+      - no-new-privileges
+
+  db:
+    image: postgres:9.5
+    environment:
+      POSTGRES_DB: ${KONG_PG_DATABASE:-kong}
+      POSTGRES_USER: ${KONG_PG_USER:-kong}
+      POSTGRES_PASSWORD: ${KONG_PG_PASSWORD:-kong}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "pg_isready",
+          "-d",
+          "${KONG_PG_DATABASE:-kong}",
+          "-U",
+          "${KONG_PG_USER:-kong}"
+        ]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    restart: on-failure
+    stdin_open: true
+    tty: true
+    networks:
+      - kong-net
+    volumes:
+      - kong_data:/var/lib/postgresql/data
+
+  db_golang_service:
+    image: mysql:5.7
+    container_name: db-services
+    environment:
+      MYSQL_ROOT_PASSWORD: Dowmean.1006
+      MYSQL_DATABASE: meet
+      MYSQL_USER: meet
+      MYSQL_PASSWORD: Dowmean.1006
+    ports:
+      - "3307:3306"  # Avoid conflicts with host MySQL by using port 3307
+    volumes:
+      - "db-data-mysql:/var/lib/mysql"
+    networks:
+      - kong-net
+
+secrets:
+  kong_postgres_password:
+    file: ./POSTGRES_PASSWORD

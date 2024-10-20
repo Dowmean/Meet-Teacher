@@ -130,3 +130,24 @@ func UpdateBookingStatus(c *gin.Context, db *gorm.DB) {
     // ส่งข้อมูลการจองที่ถูกอัปเดตกลับไป
     c.JSON(http.StatusOK, gin.H{"message": "อัปเดตสถานะการจองสำเร็จ", "booking": booking})
 }
+
+
+func GetMessagesByUserID(c *gin.Context, db *gorm.DB) {
+    userID := c.Param("user_id")
+
+    // ดึงข้อมูลการแจ้งเตือนจากฐานข้อมูล
+    var notifications []models.Notification
+    if err := db.Where("user_id = ?", userID).Select("message").Find(&notifications).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "ไม่สามารถดึงข้อมูลการแจ้งเตือนได้"})
+        return
+    }
+
+    // สร้าง slice ของข้อความ
+    var messages []string
+    for _, notification := range notifications {
+        messages = append(messages, notification.Message)
+    }
+
+    // ส่งเฉพาะข้อความการแจ้งเตือนกลับไปยัง client
+    c.JSON(http.StatusOK, gin.H{"messages": messages})
+}

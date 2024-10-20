@@ -17,7 +17,7 @@ import (
 var db *gorm.DB
 
 func main() {
-    dsn := "meet:1234@tcp(127.0.0.1:3306)/meet?charset=utf8mb4&parseTime=True&loc=Local"
+    dsn := "Dowmean:Dowmean.1006@tcp(127.0.0.1:3306)/meet?charset=utf8mb4&parseTime=True&loc=Local"
     var err error
     db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
     if err != nil {
@@ -44,9 +44,6 @@ func main() {
         controllers.Register(c, db)
     })
 
-    router.GET("/login", func(c *gin.Context) {
-        c.HTML(http.StatusOK, "login.html", nil)
-    })
 
     router.POST("/login", func(c *gin.Context) {
         controllers.Login(c, db)
@@ -80,6 +77,10 @@ func main() {
 
     router.PUT("/bookings/:id/status", func(c *gin.Context) {
         crud.UpdateBookingStatus(c, db)
+    })
+
+    router.GET("noti/:user_id", func(c *gin.Context) {
+        crud.GetMessagesByUserID(c, db)
     })
 
     port := os.Getenv("PORT")

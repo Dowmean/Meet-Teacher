@@ -17,7 +17,6 @@ func CreateSchedule(c *gin.Context, db *gorm.DB) {
         TeacherID     string `json:"teacher_id" binding:"required"`  // รับ TeacherID เป็นสตริง
         AvailableTime string `json:"available_time" binding:"required"`
     }
-
     // ตรวจสอบการ bind input จาก request
     if err := c.ShouldBind(&input); err != nil {
         fmt.Println("Bind Error:", err)

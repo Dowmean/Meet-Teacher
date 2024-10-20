@@ -1,22 +1,11 @@
-# Build stage
-FROM golang:1.19-alpine AS build
+FROM golang:alpine
+
+RUN apk add build-base
+RUN mkdir /app
 
 WORKDIR /app
-
-COPY go.mod go.sum ./
+ADD Meet-Teacher/. .
 RUN go mod download
+RUN go install -mod=mod github.com/githubnemo/CompileDaemon
 
-COPY . .
-
-RUN go build -o main .
-
-# Run stage
-FROM alpine:latest
-
-WORKDIR /root/
-
-COPY --from=build /app/main .
-
-EXPOSE 8080
-
-CMD ["./main"]
+ENTRYPOINT CompileDaemon --build="go build main.go" --command=./main
